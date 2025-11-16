@@ -554,24 +554,18 @@
             <div class="demo-accounts" id="demoAccounts">
                 <h6><i class="fas fa-vial"></i> <span id="demoTitle">Akaunti za Majaribio</span></h6>
                 <div class="demo-account">
-                    <span>admin@discsales.com</span>
-                    <button class="copy-btn" onclick="copyToClipboard('admin@discsales.com')">
+                    <span>test2@test.com</span>
+                    <button class="copy-btn" onclick="copyToClipboard('test2@test.com')">
                         <i class="fas fa-copy"></i>
                     </button>
                 </div>
                 <div class="demo-account">
-                    <span>manager@discsales.com</span>
-                    <button class="copy-btn" onclick="copyToClipboard('manager@discsales.com')">
+                    <span>admin@disc.com</span>
+                    <button class="copy-btn" onclick="copyToClipboard('admin@disc.com')">
                         <i class="fas fa-copy"></i>
                     </button>
                 </div>
-                <div class="demo-account">
-                    <span>cashier@discsales.com</span>
-                    <button class="copy-btn" onclick="copyToClipboard('cashier@discsales.com')">
-                        <i class="fas fa-copy"></i>
-                    </button>
-                </div>
-                <small class="text-light opacity-75"><span id="demoPassword">Nenosiri: password123</span></small>
+                <small class="text-light opacity-75"><span id="demoPassword">Nenosiri: mypassword123</span></small>
             </div>
 
             <div class="login-links">
@@ -610,8 +604,7 @@
         }
         
         function goToHome() { 
-            // Kwa sasa rudi kwenye login page tu
-            window.location.href = 'login.html'; 
+            window.location.href = 'index.html'; 
         }
 
         // Copy to clipboard function
@@ -692,7 +685,7 @@
                     lang: 'English',
                     success: 'Usajili umefanikiwa! Tafadhali ingia.',
                     demoTitle: 'Akaunti za Majaribio',
-                    demoPassword: 'Nenosiri: password123'
+                    demoPassword: 'Nenosiri: mypassword123'
                 },
                 en: {
                     title: 'Login',
@@ -709,7 +702,7 @@
                     lang: 'Kiswahili',
                     success: 'Registration successful! Please sign in.',
                     demoTitle: 'Demo Accounts',
-                    demoPassword: 'Password: password123'
+                    demoPassword: 'Password: mypassword123'
                 }
             };
 
@@ -733,7 +726,7 @@
             document.getElementById('demoPassword').textContent = lang.demoPassword;
         }
 
-        // Login with our API
+        // 🔧 FIXED LOGIN FUNCTION - Using correct API endpoint
         document.getElementById('loginForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
@@ -750,51 +743,116 @@
             submitBtn.disabled = true;
 
             try {
+                console.log('🔐 Attempting login for:', email);
+                
                 const response = await fetch('/api/login', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    },
-                    body: JSON.stringify({ email, password })
-                });
+                    'Accept': 'application/json'
+                    // 🔧 REMOVED: No Authorization header needed for login
+                    // 'Authorization': 'Bearer ' + (localStorage.getItem('token') || '')
+                    // 🔧 REMOVED: No need for CORS mode on same domain
+                    // mode: 'cors'
+                    // 🔧 REMOVED: No need for credentials on same domain
+                    // credentials: 'include'
+                    // 🔧 REMOVED: No need for cache control
+                    // 'Cache-Control': 'no-cache'
+                    // 🔧 REMOVED: No need for pragma
+                    // 'Pragma': 'no-cache'
+                    // 🔧 REMOVED: No need for custom headers
+                    // 'X-Requested-With': 'XMLHttpRequest'
+                    // 🔧 REMOVED: No need for user agent
+                    // 'User-Agent': 'Mozilla/5.0'
+                },
+                body: JSON.stringify({ 
+                    email: email, 
+                    password: password 
+                })
+            });
 
+                console.log('📡 Login response status:', response.status);
+                
                 const result = await response.json();
+                console.log('📡 Login response data:', result);
                 
                 if (!response.ok) {
-                    throw new Error(result.error);
+                    // 🔧 IMPROVED ERROR HANDLING
+                    let errorMessage = result.error || 'Login failed';
+                    
+                    if (response.status === 400) {
+                        errorMessage = currentLanguage === 'sw' 
+                            ? '❌ Barua pepe au nenosiri si sahihi!' 
+                            : '❌ Invalid email or password!';
+                    } else if (response.status === 401) {
+                        errorMessage = currentLanguage === 'sw' 
+                            ? '❌ Akaunti haijaidhinishwa bado!' 
+                            : '❌ Account not approved yet!';
+                    } else if (response.status === 500) {
+                        errorMessage = currentLanguage === 'sw' 
+                            ? '❌ Hitilafu ya server! Jaribu tena baadaye.' 
+                            : '❌ Server error! Please try again later.';
+                    }
+                    
+                    throw new Error(errorMessage);
                 }
 
-                // Store token and user data
-                localStorage.setItem('token', result.token);
-                localStorage.setItem('currentUser', JSON.stringify(result.user));
+                // 🔧 FIXED: Check if response has success property
+                if (result.success === false) {
+                    throw new Error(result.error || 'Login failed');
+                }
 
-                // Show success message
-                showAlert('loginAlert', 
-                    currentLanguage === 'sw' 
-                        ? '✅ Kuingia kumefanikiwa! Inaelekeza...' 
-                        : '✅ Login successful! Redirecting...', 
-                    'success');
+                // 🔧 FIXED: Store token and user data properly
+                if (result.token && result.user) {
+                    localStorage.setItem('token', result.token);
+                    localStorage.setItem('currentUser', JSON.stringify(result.user));
+                    
+                    console.log('✅ Login successful, user data stored:', result.user);
+                    
+                    // Show success message
+                    showAlert('loginAlert', 
+                        currentLanguage === 'sw' 
+                            ? '✅ Kuingia kumefanikiwa! Inaelekeza kwenye dashibodi...' 
+                            : '✅ Login successful! Redirecting to dashboard...', 
+                        'success');
 
-                // Redirect to dashboard
-                setTimeout(() => { 
-                    window.location.href = 'dashboard.html'; 
-                }, 1500);
+                    // Redirect to dashboard after short delay
+                    setTimeout(() => { 
+                        window.location.href = 'dashboard.html'; 
+                    }, 1500);
+                } else {
+                    throw new Error('Invalid response from server');
+                }
 
             } catch (error) {
-                console.error('Login error:', error);
+                console.error('❌ Login error:', error);
                 
-                let errorMessage = currentLanguage === 'sw' 
-                    ? '❌ Barua pepe au nenosiri si sahihi!' 
-                    : '❌ Invalid email or password!';
-
-                if (error.message.includes('pending approval')) {
+                let errorMessage = error.message;
+                
+                // 🔧 IMPROVED ERROR MESSAGES
+                if (error.message.includes('Failed to fetch')) {
+                    errorMessage = currentLanguage === 'sw' 
+                        ? '❌ Hitilafu ya mtandao! Hakikisha umeunganishwa kwenye internet.' 
+                        : '❌ Network error! Please check your internet connection.';
+                } else if (error.message.includes('Invalid email or password')) {
+                    errorMessage = currentLanguage === 'sw' 
+                        ? '❌ Barua pepe au nenosiri si sahihi!' 
+                        : '❌ Invalid email or password!';
+                } else if (error.message.includes('not approved')) {
                     errorMessage = currentLanguage === 'sw' 
                         ? '❌ Akaunti haijaidhinishwa! Wasiliana na msimamizi.' 
                         : '❌ Account not approved! Contact administrator.';
+                } else if (error.message.includes('not active')) {
+                    errorMessage = currentLanguage === 'sw' 
+                        ? '❌ Akaunti imezimwa! Wasiliana na msimamizi.' 
+                        : '❌ Account is disabled! Contact administrator.';
                 }
 
                 showAlert('loginAlert', errorMessage, 'danger');
+                
+                // 🔧 ADDED: Clear password field on error
+                document.getElementById('loginPassword').value = '';
+                
             } finally {
                 // Reset button state
                 btnText.style.display = 'inline-flex';
@@ -816,20 +874,58 @@
 
             // Check if user is already logged in
             const token = localStorage.getItem('token');
-            if (token) {
-                console.log('User already logged in, redirecting...');
-                window.location.href = 'dashboard.html';
+            const currentUser = localStorage.getItem('currentUser');
+            
+            if (token && currentUser) {
+                console.log('✅ User already logged in, redirecting to dashboard...');
+                try {
+                    const user = JSON.parse(currentUser);
+                    console.log('👤 Logged in user:', user);
+                    window.location.href = 'dashboard.html';
+                } catch (e) {
+                    console.error('❌ Error parsing user data:', e);
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('currentUser');
+                }
             }
 
             updateLanguage(); // Initialize language
+            
+            // 🔧 ADDED: Test API connection
+            testAPIConnection();
         });
+
+        // 🔧 NEW FUNCTION: Test API connection
+        async function testAPIConnection() {
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'OPTIONS' // Use OPTIONS to test without sending data
+                });
+                console.log('🌐 API connection test:', response.status);
+            } catch (error) {
+                console.warn('⚠️ API connection test failed:', error.message);
+            }
+        }
 
         // Enter key support
         document.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
-                document.getElementById('loginForm').dispatchEvent(new Event('submit'));
+                const activeElement = document.activeElement;
+                if (activeElement.tagName === 'INPUT' && activeElement.type !== 'checkbox') {
+                    document.getElementById('loginForm').dispatchEvent(new Event('submit'));
+                }
             }
         });
+
+        // 🔧 ADDED: Debug function to check localStorage
+        function debugLocalStorage() {
+            console.log('🔍 LocalStorage Debug:');
+            console.log('Token:', localStorage.getItem('token'));
+            console.log('Current User:', localStorage.getItem('currentUser'));
+        }
+
+        // Call debug function (remove in production)
+        debugLocalStorage();
     </script>
 </body>
 </html>
