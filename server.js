@@ -133,6 +133,18 @@ async function initializeDatabase() {
     } else {
       console.log('✅ Database tables already exist');
       
+      // 🔧 FIX: Ensure status column exists
+      try {
+        await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT \'pending\'');
+        console.log('✅ Status column verified');
+        
+        // Update existing users to active if status is null
+        await pool.query('UPDATE users SET status = \'active\' WHERE status IS NULL');
+        console.log('✅ Existing users status updated');
+      } catch (alterError) {
+        console.log('ℹ️ Status column already exists');
+      }
+      
       // Log existing tables
       const tables = await pool.query(`
         SELECT table_name 
@@ -194,7 +206,7 @@ io.on('connection', (socket) => {
 
 // AUTHENTICATION ENDPOINTS
 
-// User Registration - FIXED
+// 🔧 FIX 1: User Registration - FIXED VERSION
 app.post('/api/register', async (req, res) => {
   try {
     const { full_name, email, password } = req.body;
@@ -222,8 +234,10 @@ app.post('/api/register', async (req, res) => {
     // Check if first user (should be superadmin)
     const userCount = await pool.query('SELECT COUNT(*) FROM users');
     const isFirstUser = parseInt(userCount.rows[0].count) === 0;
+    
+    // 🔧 FIX: First user = superadmin, others = pending
     const role = isFirstUser ? 'superadmin' : 'cashier';
-    const status = isFirstUser ? 'active' : 'pending';
+    const status = isFirstUser ? 'active' : 'pending'; // 🔧 NEW USERS ARE PENDING
     
     // Create user
     const newUser = await pool.query(
@@ -232,12 +246,13 @@ app.post('/api/register', async (req, res) => {
       [full_name, email, hashedPassword, role, status]
     );
     
-    console.log('✅ User registered successfully:', newUser.rows[0].email);
+    console.log('✅ User registered successfully:', newUser.rows[0].email, 'Status:', status);
     
     res.json({ 
       success: true,
-      message: 'User registered successfully', 
-      user: newUser.rows[0] 
+      message: isFirstUser ? 'Super Admin created successfully!' : 'Registration successful! Please wait for admin approval.',
+      user: newUser.rows[0],
+      requiresApproval: !isFirstUser // 🔧 TELL FRONTEND IF APPROVAL IS NEEDED
     });
     
   } catch (error) {
@@ -249,7 +264,7 @@ app.post('/api/register', async (req, res) => {
   }
 });
 
-// User Login
+// 🔧 FIX 2: User Login - FIXED VERSION
 app.post('/api/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -263,7 +278,10 @@ app.post('/api/login', async (req, res) => {
     );
     
     if (userResult.rows.length === 0) {
-      return res.status(400).json({ error: 'Invalid email or password' });
+      return res.status(400).json({ 
+        success: false,
+        error: 'Invalid email or password' 
+      });
     }
     
     const user = userResult.rows[0];
@@ -271,12 +289,18 @@ app.post('/api/login', async (req, res) => {
     // Check password
     const validPassword = await bcrypt.compare(password, user.password);
     if (!validPassword) {
-      return res.status(400).json({ error: 'Invalid email or password' });
+      return res.status(400).json({ 
+        success: false,
+        error: 'Invalid email or password' 
+      });
     }
     
-    // Check if user is active
+    // 🔧 FIX: Check if user is active
     if (user.status !== 'active') {
-      return res.status(400).json({ error: 'Account is not active' });
+      return res.status(400).json({ 
+        success: false,
+        error: 'Account is pending approval. Please contact administrator.' 
+      });
     }
     
     // Update last login
@@ -339,6 +363,76 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
+// 🔧 FIX 3: USER MANAGEMENT ENDPOINTS
+
+// Get all users
+app.get('/api/users', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT id, full_name, email, role, status, created_at, last_login 
+      FROM users 
+      ORDER BY created_at DESC
+    `);
+    res.json({ success: true, users: result.rows });
+  } catch (error) {
+    console.log('❌ Get users error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 🔧 NEW: GET PENDING USERS (For Admin)
+app.get('/api/users/pending', authenticateToken, async (req, res) => {
+  try {
+    // Check if user is admin
+    if (!['superadmin', 'admin'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Access denied. Admin only.' });
+    }
+
+    const result = await pool.query(
+      'SELECT id, full_name, email, role, status, created_at FROM users WHERE status = $1 ORDER BY created_at DESC',
+      ['pending']
+    );
+    
+    res.json({ success: true, users: result.rows });
+  } catch (error) {
+    console.log('❌ Get pending users error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 🔧 NEW: APPROVE USER (For Admin)
+app.put('/api/users/:id/approve', authenticateToken, async (req, res) => {
+  try {
+    // Check if user is admin
+    if (!['superadmin', 'admin'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Access denied. Admin only.' });
+    }
+
+    const { id } = req.params;
+    
+    const result = await pool.query(
+      'UPDATE users SET status = $1 WHERE id = $2 RETURNING id, full_name, email, role, status',
+      ['active', id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+    
+    console.log('✅ User approved:', result.rows[0].email);
+    
+    res.json({ 
+      success: true, 
+      message: 'User approved successfully',
+      user: result.rows[0] 
+    });
+    
+  } catch (error) {
+    console.log('❌ Approve user error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // PRODUCT ENDPOINTS
 
 // Get all products
@@ -352,16 +446,26 @@ app.get('/api/products', authenticateToken, async (req, res) => {
   }
 });
 
-// Add new product
+// 🔧 FIX 4: ADD PRODUCT ENDPOINT - IMPROVED
 app.post('/api/products', authenticateToken, async (req, res) => {
   try {
     const { name, category, purchase_price, selling_price, stock } = req.body;
+    
+    // Validate required fields
+    if (!name || !category || !purchase_price || !selling_price) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Name, category, purchase price, and selling price are required' 
+      });
+    }
     
     const result = await pool.query(
       `INSERT INTO products (name, category, purchase_price, selling_price, stock) 
        VALUES ($1, $2, $3, $4, $5) RETURNING *`,
       [name, category, purchase_price, selling_price, stock || 0]
     );
+    
+    console.log('✅ Product added:', name);
     
     // Notify all clients about new product
     io.emit('product_updated', {
@@ -499,32 +603,21 @@ app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
     // Total users
     const totalUsers = await pool.query('SELECT COUNT(*) as count FROM users WHERE status = $1', ['active']);
     
+    // Pending users count
+    const pendingUsers = await pool.query('SELECT COUNT(*) as count FROM users WHERE status = $1', ['pending']);
+    
     res.json({
       success: true,
       stats: {
         todaySales: parseFloat(todaySales.rows[0].total),
         totalProducts: parseInt(totalProducts.rows[0].count),
         lowStock: parseInt(lowStock.rows[0].count),
-        totalUsers: parseInt(totalUsers.rows[0].count)
+        totalUsers: parseInt(totalUsers.rows[0].count),
+        pendingUsers: parseInt(pendingUsers.rows[0].count)
       }
     });
   } catch (error) {
     console.log('❌ Dashboard stats error:', error.message);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// USER MANAGEMENT
-app.get('/api/users', authenticateToken, async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT id, full_name, email, role, status, created_at, last_login 
-      FROM users 
-      ORDER BY created_at DESC
-    `);
-    res.json({ success: true, users: result.rows });
-  } catch (error) {
-    console.log('❌ Get users error:', error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });
