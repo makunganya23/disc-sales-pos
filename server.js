@@ -1,4 +1,4 @@
-// server.js - Complete Disc Sales POS System with Fixed Database Initialization
+// server.js - Disc Sales POS System - Fixed Version
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -21,16 +21,22 @@ const io = socketIo(server, {
 
 const PORT = process.env.PORT || 3000;
 
+// 🔧 FIX: ADD TRUST PROXY FOR VERCEL
+app.set('trust proxy', 1);
+
 // Middleware
 app.use(helmet());
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-// Rate limiting
+// 🔧 FIX: RATE LIMITING WITH PROXY SETTINGS
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100
+  max: 100,
+  message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 app.use(limiter);
 
@@ -43,12 +49,12 @@ const pool = new Pool({
 // Track active WebSocket connections
 const activeUsers = new Map();
 
-// IMPROVED DATABASE INITIALIZATION FUNCTION
+// DATABASE INITIALIZATION FUNCTION
 async function initializeDatabase() {
   try {
     console.log('🔄 Checking database tables...');
     
-    // Check if users table exists with correct columns
+    // Check if users table exists
     const tableCheck = await pool.query(`
       SELECT column_name 
       FROM information_schema.columns 
@@ -188,8 +194,8 @@ io.on('connection', (socket) => {
 
 // AUTHENTICATION ENDPOINTS
 
-// User Registration
-app.post('/register', async (req, res) => {
+// User Registration - FIXED
+app.post('/api/register', async (req, res) => {
   try {
     const { full_name, email, password } = req.body;
     
@@ -244,7 +250,7 @@ app.post('/register', async (req, res) => {
 });
 
 // User Login
-app.post('/login', async (req, res) => {
+app.post('/api/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     
