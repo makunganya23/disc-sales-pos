@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="sw">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ingia - Disc Sales System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --secondary: #f43f5e;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --dark: #1e293b;
+            --light: #f8fafc;
+            --gray: #64748b;
+            --card-bg: rgba(255, 255, 255, 0.1);
+            --glass-bg: rgba(255, 255, 255, 0.1);
+            --blur: blur(20px);
+        }
+
+        * { 
+            margin: 0; 
+            padding: 0; 
+            box-sizing: border-box; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+        }
+        
+        body { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            min-height: 100vh; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            padding: 15px;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        .bg-animation {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+        }
+
+        .bg-bubble {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            animation: float 6s ease-in-out infinite;
+        }
+
+        .bubble-1 { width: 60px; height: 60px; top: 10%; left: 5%; animation-delay: 0s; }
+        .bubble-2 { width: 80px; height: 80px; top: 70%; left: 85%; animation-delay: 2s; }
+        .bubble-3 { width: 40px; height: 40px; top: 85%; left: 15%; animation-delay: 4s; }
+        .bubble-4 { width: 70px; height: 70px; top: 15%; left: 75%; animation-delay: 1s; }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(-15px) rotate(180deg); }
+        }
+
+        .glass-container { 
+            background: var(--card-bg); 
+            backdrop-filter: var(--blur); 
+            border-radius: 20px; 
+            border: 1px solid rgba(255,255,255,0.2); 
+            box-shadow: 0 15px 35px rgba(0,0,0,0.2); 
+            padding: 2rem; 
+            width: 100%; 
+            max-width: 450px; 
+            color: white;
+            animation: slideUp 0.6s ease-out;
+            margin: 10px;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .logo-container { 
+            text-align: center; 
+            margin-bottom: 2rem; 
+        }
+        
+        .logo-icon { 
+            width: 60px; 
+            height: 60px; 
+            background: linear-gradient(135deg, #8b5cf6, #6366f1); 
+            border-radius: 14px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            font-size: 1.5rem; 
+            color: white; 
+            margin: 0 auto 0.75rem; 
+            box-shadow: 0 8px 25px rgba(99,102,241,0.4);
+        }
+        
+        .logo-text { 
+            font-size: 1.75rem; 
+            font-weight: 700; 
+            color: white; 
+            margin-bottom: 0.25rem; 
+            background: linear-gradient(135deg, #fff, #e0e7ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .logo-subtitle { 
+            color: rgba(255,255,255,0.8); 
+            font-size: 1rem; 
+        }
+        
+        .form-container h2 { 
+            font-size: 1.5rem; 
+            margin-bottom: 1.5rem; 
+            color: white; 
+            font-weight: 600; 
+            text-align: center; 
+        }
+        
+        .form-group { 
+            margin-bottom: 1.25rem; 
+            position: relative;
+        }
+        
+        .form-control { 
+            background: rgba(255,255,255,0.1); 
+            border: 2px solid rgba(255,255,255,0.2); 
+            border-radius: 10px; 
+            padding: 12px 16px; 
+            font-size: 0.95rem; 
+            color: white; 
+            transition: all 0.3s ease; 
+            width: 100%; 
+        }
+        
+        .form-control::placeholder { 
+            color: rgba(255,255,255,0.7); 
+        }
+        
+        .form-control:focus { 
+            background: rgba(255,255,255,0.15); 
+            border-color: rgba(255,255,255,0.4); 
+            box-shadow: 0 0 0 2px rgba(255,255,255,0.1); 
+            color: white; 
+            outline: none; 
+        }
+        
+        .password-input { 
+            position: relative; 
+        }
+        
+        .toggle-password { 
+            position: absolute; 
+            right: 12px; 
+            top: 50%; 
+            transform: translateY(-50%); 
+            background: none; 
+            border: none; 
+            color: rgba(255,255,255,0.7); 
+            cursor: pointer; 
+            font-size: 1rem; 
+            transition: color 0.3s ease;
+            z-index: 2;
+            padding: 5px;
+        }
+
+        .toggle-password:hover {
+            color: white;
+        }
+        
+        .form-check { 
+            display: flex; 
+            align-items: center; 
+            gap: 0.6rem; 
+            margin-bottom: 1.5rem; 
+            color: rgba(255,255,255,0.9); 
+            font-size: 0.9rem;
+        }
+        
+        .form-check-input { 
+            width: 16px; 
+            height: 16px; 
+            flex-shrink: 0;
+        }
+
+        .form-check-input:checked {
+            background-color: var(--primary);
+            border-color: var(--primary);
+        }
+        
+        .submit-btn { 
+            width: 100%; 
+            padding: 14px; 
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark)); 
+            color: white; 
+            border: none; 
+            border-radius: 10px; 
+            font-size: 1rem; 
+            font-weight: 600; 
+            cursor: pointer; 
+            transition: all 0.3s ease; 
+            position: relative; 
+            overflow: hidden; 
+            margin-bottom: 1rem;
+        }
+        
+        .submit-btn:hover { 
+            transform: translateY(-2px); 
+            box-shadow: 0 8px 25px rgba(99,102,241,0.4); 
+        }
+        
+        .submit-btn:disabled { 
+            opacity: 0.7; 
+            cursor: not-allowed; 
+            transform: none; 
+        }
+        
+        .btn-text, .btn-loading { 
+            display: inline-flex; 
+            align-items: center; 
+            gap: 0.5rem;
+            font-size: 0.95rem;
+        }
+        
+        .btn-loading { 
+            display: none; 
+        }
+        
+        .login-links { 
+            text-align: center; 
+            margin-top: 1.5rem; 
+            color: rgba(255,255,255,0.8);
+        }
+        
+        .login-links a { 
+            color: white; 
+            text-decoration: none; 
+            font-weight: 600; 
+            transition: color 0.3s ease; 
+            cursor: pointer; 
+            display: block; 
+            margin-bottom: 0.5rem; 
+            padding: 6px 12px;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+        }
+        
+        .login-links a:hover { 
+            color: #e0e7ff; 
+            text-decoration: none; 
+            background: rgba(255,255,255,0.1);
+        }
+        
+        .back-link { 
+            text-align: center; 
+            margin-top: 1rem; 
+        }
+        
+        .back-link a { 
+            color: rgba(255,255,255,0.7); 
+            text-decoration: none; 
+            font-size: 0.85rem; 
+            transition: color 0.3s ease; 
+            cursor: pointer; 
+            padding: 5px 10px;
+            display: inline-block;
+        }
+        
+        .back-link a:hover { 
+            color: white; 
+            text-decoration: underline; 
+        }
+        
+        .alert { 
+            border-radius: 10px; 
+            border: none; 
+            margin-top: 1rem; 
+            font-size: 0.9rem;
+            padding: 0.75rem 1rem;
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-8px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .demo-accounts {
+            background: rgba(255,255,255,0.08);
+            border-radius: 8px;
+            padding: 0.75rem;
+            margin-top: 1rem;
+            border-left: 3px solid var(--primary);
+        }
+
+        .demo-accounts h6 {
+            color: white;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .demo-account {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.4rem 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            font-size: 0.8rem;
+        }
+
+        .demo-account:last-child {
+            border-bottom: none;
+        }
+
+        .copy-btn {
+            background: rgba(255,255,255,0.15);
+            border: none;
+            color: white;
+            padding: 0.2rem 0.4rem;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            transition: all 0.3s ease;
+        }
+
+        .copy-btn:hover {
+            background: rgba(255,255,255,0.25);
+        }
+
+        .language-switcher {
+            position: fixed;
+            top: 15px;
+            right: 15px;
+            z-index: 1000;
+        }
+
+        .lang-btn {
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 0.4rem 0.8rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.85rem;
+            backdrop-filter: blur(10px);
+        }
+
+        .lang-btn:hover {
+            background: rgba(255,255,255,0.25);
+        }
+
+        .form-text {
+            font-size: 0.8rem;
+            margin-top: 0.25rem;
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 10px;
+                align-items: flex-start;
+                min-height: 100vh;
+                height: auto;
+            }
+
+            .glass-container { 
+                padding: 1.5rem; 
+                margin: 5px 0;
+                max-width: 100%;
+                border-radius: 16px;
+            }
+
+            .logo-icon { 
+                width: 50px; 
+                height: 50px; 
+                font-size: 1.25rem; 
+                margin-bottom: 0.5rem;
+            }
+            
+            .logo-text { 
+                font-size: 1.5rem; 
+            }
+            
+            .logo-subtitle { 
+                font-size: 0.9rem; 
+            }
+
+            .form-container h2 {
+                font-size: 1.3rem;
+                margin-bottom: 1.25rem;
+            }
+
+            .form-group {
+                margin-bottom: 1rem;
+            }
+
+            .form-control {
+                padding: 10px 14px;
+                font-size: 0.9rem;
+            }
+
+            .form-check {
+                font-size: 0.85rem;
+                margin-bottom: 1.25rem;
+            }
+
+            .form-check-input {
+                width: 15px;
+                height: 15px;
+            }
+
+            .submit-btn {
+                padding: 12px;
+                font-size: 0.95rem;
+                margin-bottom: 0.75rem;
+            }
+
+            .login-links {
+                margin-top: 1.25rem;
+            }
+
+            .login-links a {
+                font-size: 0.85rem;
+                padding: 5px 10px;
+                margin-bottom: 0.4rem;
+            }
+
+            .back-link {
+                margin-top: 0.75rem;
+            }
+
+            .demo-accounts {
+                padding: 0.6rem;
+                margin-top: 0.75rem;
+            }
+
+            .demo-accounts h6 {
+                font-size: 0.85rem;
+            }
+
+            .demo-account {
+                font-size: 0.75rem;
+                padding: 0.3rem 0;
+            }
+
+            .copy-btn {
+                padding: 0.15rem 0.3rem;
+                font-size: 0.7rem;
+            }
+
+            .language-switcher {
+                position: relative;
+                top: auto;
+                right: auto;
+                text-align: center;
+                margin-bottom: 1rem;
+            }
+
+            .lang-btn {
+                position: static;
+                display: inline-block;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Animated Background -->
+    <div class="bg-animation">
+        <div class="bg-bubble bubble-1"></div>
+        <div class="bg-bubble bubble-2"></div>
+        <div class="bg-bubble bubble-3"></div>
+        <div class="bg-bubble bubble-4"></div>
+    </div>
+
+    <!-- Language Switcher -->
+    <div class="language-switcher">
+        <button class="lang-btn" onclick="toggleLanguage()">
+            <i class="fas fa-globe"></i> 
+            <span id="langText">English</span>
+        </button>
+    </div>
+
+    <div class="glass-container">
+        <div class="logo-container">
+            <div class="logo-icon"><i class="fas fa-compact-disc"></i></div>
+            <div class="logo-text">DISC SALES</div>
+            <div class="logo-subtitle" id="loginSubtitle">Ingia kwenye Akaunti Yako</div>
+        </div>
+
+        <div class="form-container">
+            <h2 id="loginTitle">Ingia</h2>
+            
+            <!-- Success Alert -->
+            <div id="successAlert" class="alert alert-success" style="display: none;">
+                <i class="fas fa-check-circle"></i>
+                <span id="successText">Usajili umefanikiwa! Tafadhali ingia.</span>
+            </div>
+            
+            <form id="loginForm">
+                <div class="form-group">
+                    <input type="email" class="form-control" placeholder="Barua pepe" required id="loginEmail">
+                    <div class="form-text text-light opacity-75">
+                        <small><i class="fas fa-envelope"></i> <span id="emailHelp">Weka barua pepe yako</span></small>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <div class="password-input">
+                        <input type="password" class="form-control" placeholder="Nenosiri" required id="loginPassword">
+                        <button type="button" class="toggle-password" onclick="togglePassword('loginPassword')">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="rememberMe">
+                    <label class="form-check-label" for="rememberMe" id="rememberLabel">Nikumbuke</label>
+                </div>
+
+                <button type="submit" class="submit-btn">
+                    <span class="btn-text"><i class="fas fa-sign-in-alt"></i> <span id="loginBtnText">Ingia</span></span>
+                    <span class="btn-loading"><i class="fas fa-spinner fa-spin"></i> <span id="loadingText">Inaanza...</span></span>
+                </button>
+                
+                <div id="loginAlert" class="mt-3"></div>
+            </form>
+
+            <!-- Demo Accounts -->
+            <div class="demo-accounts" id="demoAccounts">
+                <h6><i class="fas fa-vial"></i> <span id="demoTitle">Akaunti za Majaribio</span></h6>
+                <div class="demo-account">
+                    <span>admin@discsales.com</span>
+                    <button class="copy-btn" onclick="copyToClipboard('admin@discsales.com')">
+                        <i class="fas fa-copy"></i>
+                    </button>
+                </div>
+                <div class="demo-account">
+                    <span>manager@discsales.com</span>
+                    <button class="copy-btn" onclick="copyToClipboard('manager@discsales.com')">
+                        <i class="fas fa-copy"></i>
+                    </button>
+                </div>
+                <div class="demo-account">
+                    <span>cashier@discsales.com</span>
+                    <button class="copy-btn" onclick="copyToClipboard('cashier@discsales.com')">
+                        <i class="fas fa-copy"></i>
+                    </button>
+                </div>
+                <small class="text-light opacity-75"><span id="demoPassword">Nenosiri: password123</span></small>
+            </div>
+
+            <div class="login-links">
+                <a onclick="goToRegister()" id="registerLink">Huna akaunti? Jisajili hapa</a>
+                <a onclick="forgotPassword()" id="forgotLink">Umesahau nenosiri?</a>
+            </div>
+
+            <div class="back-link">
+                <a onclick="goToHome()" id="backLink">← Rudi nyumbani</a>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        // Language state
+        let currentLanguage = 'sw';
+
+        // Toggle password visibility
+        function togglePassword(inputId) {
+            const passwordInput = document.getElementById(inputId);
+            const toggleIcon = passwordInput.nextElementSibling.querySelector('i');
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                toggleIcon.className = 'fas fa-eye-slash';
+            } else {
+                passwordInput.type = 'password';
+                toggleIcon.className = 'fas fa-eye';
+            }
+        }
+
+        // Navigation functions
+        function goToRegister() { 
+            window.location.href = 'register.html'; 
+        }
+        
+        function goToHome() { 
+            // Kwa sasa rudi kwenye login page tu
+            window.location.href = 'login.html'; 
+        }
+
+        // Copy to clipboard function
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                showAlert('loginAlert', 
+                    currentLanguage === 'sw' 
+                        ? '✅ Barua pepe imenakiliwa!' 
+                        : '✅ Email copied!', 
+                    'success');
+            }).catch(err => {
+                console.error('Failed to copy: ', err);
+                showAlert('loginAlert', 
+                    currentLanguage === 'sw' 
+                        ? '❌ Imeshindwa kunakili!' 
+                        : '❌ Failed to copy!', 
+                    'danger');
+            });
+        }
+
+        // Enhanced forgot password function
+        async function forgotPassword() {
+            const email = prompt(
+                currentLanguage === 'sw' 
+                    ? 'Tafadhali weka barua pepe yako ili kubadilisha nenosiri:' 
+                    : 'Please enter your email to reset password:'
+            );
+            
+            if (email) {
+                showAlert('loginAlert', 
+                    currentLanguage === 'sw' 
+                        ? '⚠️ Kipengele hiki kipo kwenye maendeleo. Wasiliana na msimamizi.' 
+                        : '⚠️ This feature is under development. Contact administrator.', 
+                    'warning');
+            }
+        }
+
+        // Show alert function
+        function showAlert(alertId, message, type) {
+            const alertDiv = document.getElementById(alertId);
+            if (alertDiv) {
+                alertDiv.innerHTML = `
+                    <div class="alert alert-${type} alert-dismissible fade show">
+                        ${message}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>`;
+                
+                // Auto remove after 5 seconds
+                setTimeout(() => {
+                    if (alertDiv.firstChild) {
+                        alertDiv.firstChild.remove();
+                    }
+                }, 5000);
+            }
+        }
+
+        // Language toggle function
+        function toggleLanguage() {
+            currentLanguage = currentLanguage === 'sw' ? 'en' : 'sw';
+            updateLanguage();
+        }
+
+        // Update all text based on current language
+        function updateLanguage() {
+            const texts = {
+                sw: {
+                    title: 'Ingia',
+                    subtitle: 'Ingia kwenye Akaunti Yako',
+                    emailPlaceholder: 'Barua pepe',
+                    passwordPlaceholder: 'Nenosiri',
+                    emailHelp: 'Weka barua pepe yako',
+                    remember: 'Nikumbuke',
+                    loginBtn: 'Ingia',
+                    loading: 'Inaanza...',
+                    register: 'Huna akaunti? Jisajili hapa',
+                    forgot: 'Umesahau nenosiri?',
+                    back: '← Rudi nyumbani',
+                    lang: 'English',
+                    success: 'Usajili umefanikiwa! Tafadhali ingia.',
+                    demoTitle: 'Akaunti za Majaribio',
+                    demoPassword: 'Nenosiri: password123'
+                },
+                en: {
+                    title: 'Login',
+                    subtitle: 'Sign in to Your Account',
+                    emailPlaceholder: 'Email',
+                    passwordPlaceholder: 'Password',
+                    emailHelp: 'Enter your email',
+                    remember: 'Remember me',
+                    loginBtn: 'Sign In',
+                    loading: 'Loading...',
+                    register: "Don't have an account? Sign up here",
+                    forgot: 'Forgot password?',
+                    back: '← Back to home',
+                    lang: 'Kiswahili',
+                    success: 'Registration successful! Please sign in.',
+                    demoTitle: 'Demo Accounts',
+                    demoPassword: 'Password: password123'
+                }
+            };
+
+            const lang = texts[currentLanguage];
+            
+            // Update all text elements
+            document.getElementById('loginTitle').textContent = lang.title;
+            document.getElementById('loginSubtitle').textContent = lang.subtitle;
+            document.getElementById('loginEmail').placeholder = lang.emailPlaceholder;
+            document.getElementById('loginPassword').placeholder = lang.passwordPlaceholder;
+            document.getElementById('emailHelp').textContent = lang.emailHelp;
+            document.getElementById('rememberLabel').textContent = lang.remember;
+            document.getElementById('loginBtnText').textContent = lang.loginBtn;
+            document.getElementById('loadingText').textContent = lang.loading;
+            document.getElementById('registerLink').textContent = lang.register;
+            document.getElementById('forgotLink').textContent = lang.forgot;
+            document.getElementById('backLink').textContent = lang.back;
+            document.getElementById('langText').textContent = lang.lang;
+            document.getElementById('successText').textContent = lang.success;
+            document.getElementById('demoTitle').textContent = lang.demoTitle;
+            document.getElementById('demoPassword').textContent = lang.demoPassword;
+        }
+
+        // Login with our API
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+
+            const submitBtn = document.querySelector('.submit-btn');
+            const btnText = submitBtn.querySelector('.btn-text');
+            const btnLoading = submitBtn.querySelector('.btn-loading');
+
+            // Show loading state
+            btnText.style.display = 'none';
+            btnLoading.style.display = 'inline-flex';
+            submitBtn.disabled = true;
+
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const result = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(result.error);
+                }
+
+                // Store token and user data
+                localStorage.setItem('token', result.token);
+                localStorage.setItem('currentUser', JSON.stringify(result.user));
+
+                // Show success message
+                showAlert('loginAlert', 
+                    currentLanguage === 'sw' 
+                        ? '✅ Kuingia kumefanikiwa! Inaelekeza...' 
+                        : '✅ Login successful! Redirecting...', 
+                    'success');
+
+                // Redirect to dashboard
+                setTimeout(() => { 
+                    window.location.href = 'dashboard.html'; 
+                }, 1500);
+
+            } catch (error) {
+                console.error('Login error:', error);
+                
+                let errorMessage = currentLanguage === 'sw' 
+                    ? '❌ Barua pepe au nenosiri si sahihi!' 
+                    : '❌ Invalid email or password!';
+
+                if (error.message.includes('pending approval')) {
+                    errorMessage = currentLanguage === 'sw' 
+                        ? '❌ Akaunti haijaidhinishwa! Wasiliana na msimamizi.' 
+                        : '❌ Account not approved! Contact administrator.';
+                }
+
+                showAlert('loginAlert', errorMessage, 'danger');
+            } finally {
+                // Reset button state
+                btnText.style.display = 'inline-flex';
+                btnLoading.style.display = 'none';
+                submitBtn.disabled = false;
+            }
+        });
+
+        // Auto-focus on email input
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('🚀 Login page loaded');
+            document.getElementById('loginEmail').focus();
+            
+            // Show success alert if redirected from registration
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('registered') === 'true') {
+                document.getElementById('successAlert').style.display = 'block';
+            }
+
+            // Check if user is already logged in
+            const token = localStorage.getItem('token');
+            if (token) {
+                console.log('User already logged in, redirecting...');
+                window.location.href = 'dashboard.html';
+            }
+
+            updateLanguage(); // Initialize language
+        });
+
+        // Enter key support
+        document.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                document.getElementById('loginForm').dispatchEvent(new Event('submit'));
+            }
+        });
+    </script>
+</body>
+</html>
