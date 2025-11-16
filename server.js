@@ -1,5 +1,4 @@
-// Improved server.js with recommended enhancements
-
+// server.js - Complete Disc Sales POS System with Fixed Database Initialization
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -38,37 +37,116 @@ app.use(limiter);
 // Database connection
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl:
-    process.env.NODE_ENV === "production"
-      ? { rejectUnauthorized: false }
-      : false
+  ssl: { rejectUnauthorized: false }
 });
 
 // Track active WebSocket connections
 const activeUsers = new Map();
 
-// Auto-update timestamps using PostgreSQL trigger
-async function createUpdateTimestampTrigger() {
-  await pool.query(`
-    CREATE OR REPLACE FUNCTION update_timestamp()
-    RETURNS TRIGGER AS $$
-    BEGIN
-      NEW.updated_at = NOW();
-      RETURN NEW;
-    END;
-    $$ LANGUAGE plpgsql;
-  `);
+// IMPROVED DATABASE INITIALIZATION FUNCTION
+async function initializeDatabase() {
+  try {
+    console.log('🔄 Checking database tables...');
+    
+    // Check if users table exists with correct columns
+    const tableCheck = await pool.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'users'
+    `);
+    
+    if (tableCheck.rows.length === 0) {
+      console.log('❌ Users table missing. Creating tables...');
+      
+      // Create users table
+      await pool.query(`
+        CREATE TABLE users (
+          id SERIAL PRIMARY KEY,
+          full_name VARCHAR(100) NOT NULL,
+          email VARCHAR(100) UNIQUE NOT NULL,
+          password VARCHAR(255) NOT NULL,
+          role VARCHAR(20) DEFAULT 'cashier',
+          status VARCHAR(20) DEFAULT 'pending',
+          bio TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          last_login TIMESTAMP
+        );
+      `);
+      console.log('✅ Users table created');
 
-  await pool.query(`
-    CREATE TRIGGER update_products_timestamp
-    BEFORE UPDATE ON products
-    FOR EACH ROW
-    EXECUTE FUNCTION update_timestamp();
-  `);
+      // Create products table
+      await pool.query(`
+        CREATE TABLE products (
+          id SERIAL PRIMARY KEY,
+          name VARCHAR(100) NOT NULL,
+          category VARCHAR(50) NOT NULL,
+          purchase_price DECIMAL(10,2) NOT NULL,
+          selling_price DECIMAL(10,2) NOT NULL,
+          stock INTEGER NOT NULL DEFAULT 0,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+      console.log('✅ Products table created');
+
+      // Create sales table
+      await pool.query(`
+        CREATE TABLE sales (
+          id SERIAL PRIMARY KEY,
+          date DATE NOT NULL,
+          customer VARCHAR(100) NOT NULL,
+          total DECIMAL(10,2) NOT NULL,
+          user_id INTEGER REFERENCES users(id),
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+      console.log('✅ Sales table created');
+
+      // Create sale_items table
+      await pool.query(`
+        CREATE TABLE sale_items (
+          id SERIAL PRIMARY KEY,
+          sale_id INTEGER REFERENCES sales(id) ON DELETE CASCADE,
+          product_id INTEGER REFERENCES products(id),
+          quantity INTEGER NOT NULL,
+          unit_price DECIMAL(10,2) NOT NULL,
+          total_price DECIMAL(10,2) NOT NULL
+        );
+      `);
+      console.log('✅ Sale items table created');
+
+      // Create default super admin user
+      const hashedPassword = await bcrypt.hash('admin123', 10);
+      await pool.query(
+        `INSERT INTO users (full_name, email, password, role, status) 
+         VALUES ($1, $2, $3, $4, $5)`,
+        ['Super Admin', 'admin@disc.com', hashedPassword, 'superadmin', 'active']
+      );
+      console.log('✅ Default admin user created');
+
+    } else {
+      console.log('✅ Database tables already exist');
+      
+      // Log existing tables
+      const tables = await pool.query(`
+        SELECT table_name 
+        FROM information_schema.tables 
+        WHERE table_schema = 'public'
+      `);
+      console.log('📊 Existing tables:', tables.rows.map(t => t.table_name));
+    }
+    
+    console.log('🎉 Database initialization completed successfully!');
+    
+  } catch (error) {
+    console.log('❌ Database initialization failed:', error.message);
+  }
 }
 
 // WebSocket handling
 io.on('connection', (socket) => {
+  console.log('🔌 New client connected:', socket.id);
+
   socket.on('authenticate', (userData) => {
     activeUsers.set(socket.id, userData);
     socket.broadcast.emit('user_online', {
@@ -95,6 +173,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
+    console.log('🔌 Client disconnected:', socket.id);
     const userData = activeUsers.get(socket.id);
     if (userData) {
       activeUsers.delete(socket.id);
@@ -107,84 +186,388 @@ io.on('connection', (socket) => {
   });
 });
 
-// Test DB connection
-pool.connect((err, client, release) => {
-  if (!err) release();
+// AUTHENTICATION ENDPOINTS
+
+// User Registration
+app.post('/register', async (req, res) => {
+  try {
+    const { full_name, email, password } = req.body;
+    
+    console.log('📝 Registration attempt:', { full_name, email });
+    
+    // Validate input
+    if (!full_name || !email || !password) {
+      return res.status(400).json({ error: 'All fields are required' });
+    }
+
+    // Check if user exists
+    const userExists = await pool.query(
+      'SELECT * FROM users WHERE email = $1',
+      [email]
+    );
+    
+    if (userExists.rows.length > 0) {
+      return res.status(400).json({ error: 'User already exists' });
+    }
+    
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+    
+    // Check if first user (should be superadmin)
+    const userCount = await pool.query('SELECT COUNT(*) FROM users');
+    const isFirstUser = parseInt(userCount.rows[0].count) === 0;
+    const role = isFirstUser ? 'superadmin' : 'cashier';
+    const status = isFirstUser ? 'active' : 'pending';
+    
+    // Create user
+    const newUser = await pool.query(
+      `INSERT INTO users (full_name, email, password, role, status) 
+       VALUES ($1, $2, $3, $4, $5) RETURNING id, full_name, email, role, status, created_at`,
+      [full_name, email, hashedPassword, role, status]
+    );
+    
+    console.log('✅ User registered successfully:', newUser.rows[0].email);
+    
+    res.json({ 
+      success: true,
+      message: 'User registered successfully', 
+      user: newUser.rows[0] 
+    });
+    
+  } catch (error) {
+    console.log('❌ Registration error:', error.message);
+    res.status(500).json({ 
+      success: false,
+      error: 'Registration failed: ' + error.message 
+    });
+  }
 });
 
-// Initialize DB tables + triggers
-async function initializeDatabase() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS users (
-      id SERIAL PRIMARY KEY,
-      full_name VARCHAR(100) NOT NULL,
-      email VARCHAR(100) UNIQUE NOT NULL,
-      password VARCHAR(255) NOT NULL,
-      role VARCHAR(20) DEFAULT 'cashier',
-      status VARCHAR(20) DEFAULT 'pending',
-      bio TEXT,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      last_login TIMESTAMP,
-      CONSTRAINT valid_role CHECK (role IN ('superadmin', 'admin', 'manager', 'cashier')),
-      CONSTRAINT valid_status CHECK (status IN ('active', 'pending', 'blocked'))
+// User Login
+app.post('/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    console.log('🔐 Login attempt:', email);
+    
+    // Find user
+    const userResult = await pool.query(
+      'SELECT * FROM users WHERE email = $1',
+      [email]
     );
-  `);
-
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS products (
-      id SERIAL PRIMARY KEY,
-      name VARCHAR(100) NOT NULL,
-      category VARCHAR(50) NOT NULL,
-      purchase_price DECIMAL(10,2) NOT NULL,
-      selling_price DECIMAL(10,2) NOT NULL,
-      stock INTEGER NOT NULL DEFAULT 0,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    
+    if (userResult.rows.length === 0) {
+      return res.status(400).json({ error: 'Invalid email or password' });
+    }
+    
+    const user = userResult.rows[0];
+    
+    // Check password
+    const validPassword = await bcrypt.compare(password, user.password);
+    if (!validPassword) {
+      return res.status(400).json({ error: 'Invalid email or password' });
+    }
+    
+    // Check if user is active
+    if (user.status !== 'active') {
+      return res.status(400).json({ error: 'Account is not active' });
+    }
+    
+    // Update last login
+    await pool.query(
+      'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1',
+      [user.id]
     );
-  `);
-
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS sales (
-      id SERIAL PRIMARY KEY,
-      date DATE NOT NULL,
-      customer VARCHAR(100) NOT NULL,
-      total DECIMAL(10,2) NOT NULL,
-      user_id INTEGER REFERENCES users(id),
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    
+    // Generate token
+    const token = jwt.sign(
+      { 
+        id: user.id, 
+        email: user.email, 
+        role: user.role,
+        name: user.full_name 
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
     );
-  `);
+    
+    console.log('✅ Login successful:', user.email);
+    
+    res.json({
+      success: true,
+      message: 'Login successful',
+      token,
+      user: {
+        id: user.id,
+        full_name: user.full_name,
+        email: user.email,
+        role: user.role,
+        status: user.status
+      }
+    });
+    
+  } catch (error) {
+    console.log('❌ Login error:', error.message);
+    res.status(500).json({ 
+      success: false,
+      error: 'Login failed: ' + error.message 
+    });
+  }
+});
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS sale_items (
-      id SERIAL PRIMARY KEY,
-      sale_id INTEGER REFERENCES sales(id) ON DELETE CASCADE,
-      product_id INTEGER REFERENCES products(id),
-      quantity INTEGER NOT NULL,
-      unit_price DECIMAL(10,2) NOT NULL,
-      total_price DECIMAL(10,2) NOT NULL
-    );
-  `);
-
-  await createUpdateTimestampTrigger();
-}
-
-// Auth middleware
+// Authentication middleware
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
-  if (!token) return res.status(401).json({ error: 'Access token required' });
+  if (!token) {
+    return res.status(401).json({ error: 'Access token required' });
+  }
 
   jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
-    if (err) return res.status(403).json({ error: 'Invalid or expired token' });
+    if (err) {
+      return res.status(403).json({ error: 'Invalid or expired token' });
+    }
     req.user = user;
     next();
   });
 };
 
+// PRODUCT ENDPOINTS
+
+// Get all products
+app.get('/api/products', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM products ORDER BY name');
+    res.json({ success: true, products: result.rows });
+  } catch (error) {
+    console.log('❌ Get products error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Add new product
+app.post('/api/products', authenticateToken, async (req, res) => {
+  try {
+    const { name, category, purchase_price, selling_price, stock } = req.body;
+    
+    const result = await pool.query(
+      `INSERT INTO products (name, category, purchase_price, selling_price, stock) 
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [name, category, purchase_price, selling_price, stock || 0]
+    );
+    
+    // Notify all clients about new product
+    io.emit('product_updated', {
+      type: 'created',
+      product: result.rows[0],
+      user: req.user.name
+    });
+    
+    res.json({ success: true, product: result.rows[0] });
+  } catch (error) {
+    console.log('❌ Add product error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Update product stock
+app.put('/api/products/:id/stock', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { stock } = req.body;
+    
+    const result = await pool.query(
+      'UPDATE products SET stock = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
+      [stock, id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Product not found' });
+    }
+    
+    // Notify all clients about stock update
+    io.emit('product_updated', {
+      type: 'stock_updated',
+      product: result.rows[0],
+      user: req.user.name
+    });
+    
+    res.json({ success: true, product: result.rows[0] });
+  } catch (error) {
+    console.log('❌ Update stock error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// SALES ENDPOINTS
+
+// Create new sale
+app.post('/api/sales', authenticateToken, async (req, res) => {
+  const client = await pool.connect();
+  
+  try {
+    await client.query('BEGIN');
+    
+    const { customer, items } = req.body;
+    const total = items.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
+    
+    // Create sale record
+    const saleResult = await client.query(
+      `INSERT INTO sales (date, customer, total, user_id) 
+       VALUES (CURRENT_DATE, $1, $2, $3) RETURNING *`,
+      [customer, total, req.user.id]
+    );
+    
+    const sale = saleResult.rows[0];
+    
+    // Create sale items and update product stock
+    for (const item of items) {
+      // Add sale item
+      await client.query(
+        `INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, total_price) 
+         VALUES ($1, $2, $3, $4, $5)`,
+        [sale.id, item.product_id, item.quantity, item.unit_price, item.quantity * item.unit_price]
+      );
+      
+      // Update product stock
+      await client.query(
+        'UPDATE products SET stock = stock - $1 WHERE id = $2',
+        [item.quantity, item.product_id]
+      );
+    }
+    
+    await client.query('COMMIT');
+    
+    // Notify all clients about new sale
+    io.emit('sale_created', {
+      sale: sale,
+      items: items,
+      user: req.user.name
+    });
+    
+    res.json({ success: true, sale: sale });
+    
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.log('❌ Create sale error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// Get all sales
+app.get('/api/sales', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT s.*, u.full_name as user_name 
+      FROM sales s 
+      LEFT JOIN users u ON s.user_id = u.id 
+      ORDER BY s.created_at DESC
+    `);
+    res.json({ success: true, sales: result.rows });
+  } catch (error) {
+    console.log('❌ Get sales error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// DASHBOARD STATS
+app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Today's sales
+    const todaySales = await pool.query(
+      'SELECT COALESCE(SUM(total), 0) as total FROM sales WHERE date = $1',
+      [today]
+    );
+    
+    // Total products
+    const totalProducts = await pool.query('SELECT COUNT(*) as count FROM products');
+    
+    // Low stock products
+    const lowStock = await pool.query('SELECT COUNT(*) as count FROM products WHERE stock < 10');
+    
+    // Total users
+    const totalUsers = await pool.query('SELECT COUNT(*) as count FROM users WHERE status = $1', ['active']);
+    
+    res.json({
+      success: true,
+      stats: {
+        todaySales: parseFloat(todaySales.rows[0].total),
+        totalProducts: parseInt(totalProducts.rows[0].count),
+        lowStock: parseInt(lowStock.rows[0].count),
+        totalUsers: parseInt(totalUsers.rows[0].count)
+      }
+    });
+  } catch (error) {
+    console.log('❌ Dashboard stats error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// USER MANAGEMENT
+app.get('/api/users', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT id, full_name, email, role, status, created_at, last_login 
+      FROM users 
+      ORDER BY created_at DESC
+    `);
+    res.json({ success: true, users: result.rows });
+  } catch (error) {
+    console.log('❌ Get users error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Serve frontend
+app.get('/', (req, res) => {
+  res.sendFile(__dirname + '/public/index.html');
+});
+
+app.get('/login', (req, res) => {
+  res.sendFile(__dirname + '/public/login.html');
+});
+
+app.get('/register', (req, res) => {
+  res.sendFile(__dirname + '/public/register.html');
+});
+
+app.get('/dashboard', (req, res) => {
+  res.sendFile(__dirname + '/public/dashboard.html');
+});
+
+// Health check endpoint
+app.get('/health', async (req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.json({ 
+      status: 'OK', 
+      database: 'Connected',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      status: 'ERROR', 
+      database: 'Disconnected',
+      error: error.message 
+    });
+  }
+});
+
 // Start server
 initializeDatabase().then(() => {
-  server.listen(PORT, () => {});
+  server.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+    console.log(`🌐 Website: http://localhost:${PORT}`);
+    console.log(`📊 Database initialized successfully`);
+    console.log(`🔧 Health check: http://localhost:${PORT}/health`);
+  });
+}).catch(error => {
+  console.log('❌ Failed to start server:', error.message);
 });
 
 module.exports = app;
